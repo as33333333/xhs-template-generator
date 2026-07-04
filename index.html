@@ -288,6 +288,8 @@
         <div class="editor" id="bdBody" contenteditable="true" data-ph="在此输入正文，可选中文字后加粗、下划线、插入序号…"></div>
         <div class="hint">回车分段。开启自动分页后超长正文会排成多张正文图。</div>
       </div>
+      <div class="field"><label><span class="nm">正文行间距</span></label>
+        <div class="slider"><input type="range" id="bodyLH" min="130" max="280" step="5" value="190"><span class="val" id="bodyLHV">1.90</span></div></div>
       <div class="switch-row" style="margin-top:6px"><span style="font-size:12px;color:#515154;font-weight:500;">自动分页排版</span>
         <label class="switch"><input type="checkbox" id="autoPage" checked><span class="track"></span></label></div>
       <div class="field" style="margin-top:12px"><label><span class="nm">页码显示</span></label>
@@ -332,7 +334,7 @@ const TEMPLATES = [
 function tplStyle(tp){
   const kf = tp.arche==='bunko' ? tp.tf : 'mono';
   const ks = (tp.arche==='minimal'||tp.arche==='classic')?26 : (tp.arche==='gallery'?28:30);
-  return {kicker:{f:kf,s:ks}, title:{f:tp.tf,s:tp.ts}, sub:{f:tp.tf,s:36}, head:{f:tp.tf,s:50}, body:{f:tp.bf,s:tp.bs}};
+  return {kicker:{f:kf,s:ks}, title:{f:tp.tf,s:tp.ts}, sub:{f:tp.tf,s:36}, head:{f:tp.tf,s:50}, body:{f:tp.bf,s:tp.bs,lh:1.9}};
 }
 
 /* ---------- 质感纹理 ---------- */
@@ -450,6 +452,7 @@ function markSwatch(){document.querySelectorAll('.swatch[data-c]').forEach(s=>s.
 function syncControls(){
   document.querySelectorAll('.tpl-card').forEach(b=>b.classList.toggle('on',b.dataset.id===S.tplId));
   $('#texSel').value=S.tex; $('#texStr').value=S.texStr; $('#texStrV').textContent=(S.texStr/100).toFixed(2);
+  const lh=S.style.body.lh||1.9; $('#bodyLH').value=Math.round(lh*100); $('#bodyLHV').textContent=lh.toFixed(2);
   document.querySelectorAll('.seg#segFooter button').forEach(x=>x.classList.toggle('on',x.dataset.v===S.footer));
   document.querySelectorAll('.fstyle').forEach(box=>{
     const k=box.dataset.k;
@@ -489,7 +492,7 @@ function bodyBlocks(html){
   while(out.length&&out[out.length-1]===BLANK)out.pop(); // 仅去掉尾部多余空行
   return out;
 }
-function measureH(units){measurer.style.fontFamily=FONTS[S.style.body.f].css;measurer.style.fontSize=S.style.body.s+'px';measurer.innerHTML=unitsToHTML(units);return measurer.scrollHeight;}
+function measureH(units){measurer.style.fontFamily=FONTS[S.style.body.f].css;measurer.style.fontSize=S.style.body.s+'px';measurer.style.lineHeight=S.style.body.lh||1.9;measurer.innerHTML=unitsToHTML(units);return measurer.scrollHeight;}
 const blockTag=html=>{const m=String(html).match(/^\s*<(\w+)/);return m?m[1].toLowerCase():'p';};
 const isSplittable=html=>{const t=blockTag(html);return t==='p'||t==='div';};
 // 段落 → 句子内层片段(保留内联格式)。句末标点：。！？；…
@@ -547,7 +550,7 @@ function paginate(html,hasHead){
 
 
 /* ---------- 渲染 ---------- */
-const stStyle=k=>`font-family:${FONTS[S.style[k].f].css};font-size:${S.style[k].s}px`;
+const stStyle=k=>`font-family:${FONTS[S.style[k].f].css};font-size:${S.style[k].s}px${S.style[k].lh?`;line-height:${S.style[k].lh}`:''}`;
 const firstChar=t=>{const s=(t||'').replace(/\s/g,'');return s?s[0]:'书';};
 function coverInner(arche,c){
   const wrapEl=(key,inner)=>`<div class="dragel" data-el="${key}" style="transform:translate(${S.pos[key].x}px,${S.pos[key].y}px)">${inner}</div>`;
@@ -642,6 +645,7 @@ $('#bdBody').addEventListener('input',schedule);
 ['wmOn','autoPage'].forEach(id=>$('#'+id).addEventListener('change',()=>{build();save();}));
 $('#texSel').onchange=e=>{S.tex=e.target.value;build();save();};
 $('#texStr').oninput=e=>{S.texStr=+e.target.value;$('#texStrV').textContent=(S.texStr/100).toFixed(2);build();save();};
+$('#bodyLH').oninput=e=>{const lh=(+e.target.value)/100;S.style.body.lh=lh;$('#bodyLHV').textContent=lh.toFixed(2);build();save();};
 $('#segFooter').onclick=e=>{const b=e.target.closest('button');if(!b)return;S.footer=b.dataset.v;syncControls();build();save();};
 
 // 富文本工具栏
