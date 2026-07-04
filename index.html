@@ -489,41 +489,62 @@ function bodyBlocks(html){
   while(out.length&&out[out.length-1]===BLANK)out.pop(); // 仅去掉尾部多余空行
   return out;
 }
-function measureH(arr){measurer.style.fontFamily=FONTS[S.style.body.f].css;measurer.style.fontSize=S.style.body.s+'px';measurer.innerHTML=arr.join('');return measurer.scrollHeight;}
+function measureH(units){measurer.style.fontFamily=FONTS[S.style.body.f].css;measurer.style.fontSize=S.style.body.s+'px';measurer.innerHTML=unitsToHTML(units);return measurer.scrollHeight;}
+const blockTag=html=>{const m=String(html).match(/^\s*<(\w+)/);return m?m[1].toLowerCase():'p';};
+const isSplittable=html=>{const t=blockTag(html);return t==='p'||t==='div';};
+// 段落 → 句子内层片段(保留内联格式)。句末标点：。！？；…
+function splitPara(html){
+  const tmp=document.createElement('div');tmp.innerHTML=html;
+  const el=tmp.firstElementChild;const tag=el?el.tagName.toLowerCase():'p';
+  const root=el||tmp;const END=/[。！？!?；;…]$/;
+  const list=[];let bucket=[];
+  const flush=()=>{if(!bucket.length)return;const w=document.createElement('div');bucket.forEach(n=>w.appendChild(n));const inner=w.innerHTML;if(inner.replace(/<br>/g,'').trim())list.push(inner);bucket=[];};
+  root.childNodes.forEach(child=>{
+    if(child.nodeType===3){child.textContent.split(/(?<=[。！？!?；;…])/).forEach(p=>{if(p==='')return;bucket.push(document.createTextNode(p));if(END.test(p))flush();});}
+    else if(child.nodeType===1){bucket.push(child.cloneNode(true));if(END.test(child.textContent))flush();}
+  });
+  flush();
+  return {tag,list:list.length?list:[root.innerHTML]};
+}
+// blocks → 最小可排单元：普通段拆成句片段(带段落id)，列表/空行整块
+function toUnits(blocks){
+  const units=[];let pid=0;
+  for(const b of blocks){
+    if(isSplittable(b)){const {tag,list}=splitPara(b);pid++;list.forEach(inner=>units.push({t:'f',pid,tag,inner}));}
+    else units.push({t:'b',html:b});
+  }
+  return units;
+}
+// 单元数组 → HTML：同页内同段(pid)的句片段合并回一个段落
+function unitsToHTML(units){
+  let h='',i=0;
+  while(i<units.length){const u=units[i];
+    if(u.t==='f'){let inner=u.inner,j=i+1;while(j<units.length&&units[j].t==='f'&&units[j].pid===u.pid){inner+=units[j].inner;j++;}h+=`<${u.tag}>${inner}</${u.tag}>`;i=j;}
+    else{h+=u.html;i++;}
+  }
+  return h;
+}
 function paginate(html,hasHead){
-  const blocks=bodyBlocks(html);if(!blocks.length)return[];
+  const units=toUnits(bodyBlocks(html));if(!units.length)return[];
   const avail=1440-150-130, footRes=S.footer==='num'?60:20;
   const headRes=hasHead?Math.round(S.style.head.s*1.5+50):0;
-  const maxFirst=avail-footRes-headRes, maxRest=avail-footRes;
+  const maxOf=i=>i===0?avail-footRes-headRes:avail-footRes;
   const pages=[];let cur=[];
-  const curMax=()=>pages.length===0?maxFirst:maxRest;
-  for(const b of blocks){
-    cur.push(b);
+  const curMax=()=>maxOf(pages.length);
+  // 逐句贪心：塞满页底，只有放不下的那句才顺延下一页
+  for(const u of units){
+    cur.push(u);
     if(measureH(cur)>curMax()){
       cur.pop();
-      if(cur.length){pages.push(cur);cur=[];}
-      if(measureH([b])>(pages.length===0?maxFirst:maxRest)){
-        for(const part of splitBlock(b,()=>pages.length===0?maxFirst:maxRest))pages.push([part]);
-      }else cur=[b];
+      if(cur.length){pages.push(cur);cur=[u];}
+      else{pages.push([u]);cur=[];} // 超长单句 → 硬放独立页
     }
   }
   if(cur.length)pages.push(cur);
   return pages;
 }
-function splitBlock(html,maxFn){
-  // 仅对纯文本块按句拆；含标签/列表的块整块保留
-  const tmp=document.createElement('div');tmp.innerHTML=html;
-  const el=tmp.firstElementChild;
-  const tag=el?el.tagName.toLowerCase():'p';
-  const hasChildEl=el&&el.children.length>0;
-  if(hasChildEl||/^(ol|ul)$/.test(tag))return[html];
-  const text=(el?el.textContent:tmp.textContent)||'';
-  const sents=text.split(/(?<=[。！？!?；;…])/).filter(Boolean);
-  const out=[];let cur='';
-  for(const s of sents){const t=cur+s;if(measureH([`<${tag}>${esc(t)}</${tag}>`])>maxFn()&&cur){out.push(`<${tag}>${esc(cur)}</${tag}>`);cur=s;}else cur=t;}
-  if(cur)out.push(`<${tag}>${esc(cur)}</${tag}>`);
-  return out.length?out:[html];
-}
+
+
 
 /* ---------- 渲染 ---------- */
 const stStyle=k=>`font-family:${FONTS[S.style[k].f].css};font-size:${S.style[k].s}px`;
@@ -542,9 +563,9 @@ function coverInner(arche,c){
     default:return `<div class="content cv-notes"><div>${K('kick-mono')}${T}${Sub}</div><div><div class="rule"></div></div></div>`;
   }
 }
-function bodyInner(pgBlocks,first,c,n,total){
+function bodyInner(units,first,c,n,total){
   const head=first&&c.head.trim()?`<div class="dragel" data-el="head" style="transform:translate(${S.pos.head.x}px,${S.pos.head.y}px)"><div class="head" style="${stStyle('head')}"><span class="mk"></span><span>${esc(c.head)}</span></div></div>`:'';
-  const flow=`<div class="flow" style="${stStyle('body')}">${pgBlocks.join('')}</div>`;
+  const flow=`<div class="flow" style="${stStyle('body')}">${unitsToHTML(units)}</div>`;
   const foot=S.footer==='num'?`<div class="footer"><span>${String(n).padStart(2,'0')}</span><span class="bar"></span><span>${String(total).padStart(2,'0')}</span></div>`:'';
   return `<div class="content body">${head}${flow}</div>${foot}`;
 }
@@ -556,14 +577,14 @@ function build(){
   const pal=palette(S.paper,S.accent,S.arche);
   const vars=cardVars(pal),vig=`background:${pal.vignette}`;
   const grainCls=`grain tex-${S.tex}`,grainStyle=`opacity:${(S.texStr/100).toFixed(3)}`;
-  let pages=c.autoPage?paginate(c.body,!!c.head.trim()):(bodyBlocks(c.body).length?[bodyBlocks(c.body)]:[]);
-  const items=[{type:'cover'},...pages.map((pg,i)=>({type:'body',blocks:pg,first:i===0}))];
+  let pages=c.autoPage?paginate(c.body,!!c.head.trim()):(bodyBlocks(c.body).length?[toUnits(bodyBlocks(c.body))]:[]);
+  const items=[{type:'cover'},...pages.map((pg,i)=>({type:'body',units:pg,first:i===0}))];
   const total=items.length;
   cardsEl.innerHTML='';
   if(!c.title.trim()&&!bodyBlocks(c.body).length){cardsEl.innerHTML='<div class="empty">请输入内容</div>';$('#count').textContent='—';return;}
   items.forEach((it,i)=>{
     const n=i+1;
-    const inner=it.type==='cover'?coverInner(S.arche,c):bodyInner(it.blocks,it.first,c,n,total);
+    const inner=it.type==='cover'?coverInner(S.arche,c):bodyInner(it.units,it.first,c,n,total);
     const wrap=document.createElement('div');wrap.className='card-wrap';
     wrap.innerHTML=`<div class="card-frame"><div class="card-scaler"><div class="card" id="card-${i}" style="${vars}">${wmHTML(c)}<div class="warm"></div><div class="${grainCls}" style="${grainStyle}"></div><div class="vignette" style="${vig}"></div>${inner}</div></div></div><div style="display:flex;gap:10px;align-items:center"><span class="card-tag">${it.type==='cover'?'封面':'正文'} · ${String(n).padStart(2,'0')}</span><button class="card-dl" data-i="${i}">下载</button></div>`;
     cardsEl.appendChild(wrap);
