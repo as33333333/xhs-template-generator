@@ -49,10 +49,10 @@
   .row .field{flex:1;}
 
   /* 每字段字体字号微控件 */
-  .fstyle{display:inline-flex;gap:5px;align-items:center;flex:none;}
+  .fstyle{display:inline-flex;gap:6px;align-items:center;flex:none;}
   .fstyle select{width:auto;font-size:11px;padding:3px 20px 3px 7px;height:26px;border-radius:6px;background-position:right 6px center;}
-  .fstyle input{width:50px;font-size:11px;padding:3px 6px;height:26px;border-radius:6px;text-align:center;-moz-appearance:textfield;}
-  .fstyle input::-webkit-outer-spin-button,.fstyle input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+  .fstyle input[type=range]{width:72px;accent-color:#2B2622;cursor:pointer;}
+  .fstyle .fsv{font-size:11px;color:#515154;min-width:20px;text-align:right;font-variant-numeric:tabular-nums;}
 
   /* 富文本工具栏 */
   .rt-tools{display:flex;gap:6px;margin-bottom:7px;}
@@ -429,9 +429,10 @@ function initControls(){
   // 每字段字体字号控件
   document.querySelectorAll('.fstyle').forEach(box=>{
     const k=box.dataset.k,[mn,mx]=SIZE_RANGE[k];
-    box.innerHTML=`<select class="ff">${FONT_OPTS}</select><input class="fs" type="number" min="${mn}" max="${mx}" step="1">`;
+    box.innerHTML=`<select class="ff">${FONT_OPTS}</select><input class="fs" type="range" min="${mn}" max="${mx}" step="1"><span class="fsv"></span>`;
     box.querySelector('.ff').onchange=e=>{S.style[k].f=e.target.value;build();save();};
-    box.querySelector('.fs').oninput=e=>{let v=+e.target.value||mn;v=Math.max(mn,Math.min(mx,v));S.style[k].s=v;build();save();};
+    const fs=box.querySelector('.fs'),fsv=box.querySelector('.fsv');
+    fs.oninput=e=>{const v=+e.target.value;S.style[k].s=v;fsv.textContent=v;build();save();};
   });
 }
 function markSwatch(){document.querySelectorAll('.swatch[data-c]').forEach(s=>s.classList.toggle('on',s.dataset.c.toLowerCase()===S.paper.toLowerCase()));}
@@ -445,6 +446,7 @@ function syncControls(){
     const k=box.dataset.k;
     box.querySelector('.ff').value=S.style[k].f;
     box.querySelector('.fs').value=S.style[k].s;
+    box.querySelector('.fsv').textContent=S.style[k].s;
   });
   markSwatch();
 }
