@@ -136,11 +136,12 @@
   .wm{position:absolute;top:60px;right:60px;z-index:6;display:inline-flex;align-items:center;gap:12px;padding:12px 22px;border:1.5px solid var(--wmbord);border-radius:999px;font-family:"JetBrains Mono",monospace;font-size:25px;font-weight:500;letter-spacing:1px;color:var(--wmcol);background:var(--wmbg);}
   .wm::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--wmcol);opacity:.85;}
 
-  .dragwrap{position:relative;cursor:grab;}
-  .card-scaler .dragwrap:hover{outline:2px dashed rgba(120,110,90,.45);outline-offset:14px;}
-  .dragwrap.grabbing{cursor:grabbing;}
+  .dragel{position:relative;cursor:grab;}
+  .card-scaler .dragel:hover{outline:2px dashed rgba(120,110,90,.45);outline-offset:10px;}
+  .dragel.grabbing{cursor:grabbing;}
 
   .kick-mono{font-family:"JetBrains Mono",monospace;letter-spacing:6px;text-transform:uppercase;}
+  .card .kicker{white-space:pre-wrap;}
   .title{font-weight:700;line-height:1.3;letter-spacing:2px;white-space:pre-wrap;}
   .subtitle{font-weight:400;line-height:1.7;letter-spacing:1px;white-space:pre-wrap;}
 
@@ -208,6 +209,9 @@
   #measurer ol{margin:0 0 .7em;padding-left:1.5em;}
   #measurer li{margin-bottom:.35em;}
   .empty{color:#a1a1a6;font-size:13px;text-align:center;padding:80px 0;width:100%;}
+  .toast{position:fixed;bottom:32px;left:calc(50% + 215px);transform:translate(-50%,20px);background:#2B2622;color:#fff;padding:11px 20px;border-radius:12px;font-size:13px;font-weight:600;box-shadow:0 8px 30px rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:.25s;z-index:200;display:flex;align-items:center;gap:8px;}
+  .toast.show{opacity:1;transform:translate(-50%,0);}
+  .toast.err{background:#b23a2e;}
   .panel::-webkit-scrollbar,.stage::-webkit-scrollbar{width:9px;}
   .panel::-webkit-scrollbar-thumb,.stage::-webkit-scrollbar-thumb{background:#dcdad4;border-radius:9px;border:2px solid transparent;background-clip:content-box;}
 </style>
@@ -296,6 +300,7 @@
 </main>
 
 <div id="measurer"></div>
+<div id="toast" class="toast"></div>
 
 <script>
 /* ---------- 字体 ---------- */
@@ -360,8 +365,9 @@ function palette(paper,accent,arche){
 
 /* ---------- 状态 ---------- */
 const DEFAULT_BODY = `<p>我们总以为效率是唯一的美德，把每一分钟都塞得满满当当，仿佛停下来就是一种浪费。</p><p>可真正让我记住的日子，往往是那些什么都没做的下午——阳光斜进屋子，茶还温着，书翻到一半就搁下了。</p><p>后来我才明白，生活不是一场需要冲刺的比赛。它更像一条河，你不必推着它走，只要愿意坐在岸边，看它慢慢流过就好。</p><p>允许自己停顿，允许一些事情不那么快地发生。这不是懈怠，而是<b>另一种认真</b>。</p>`;
+const resetPos=()=>({kicker:{x:0,y:0},title:{x:0,y:0},sub:{x:0,y:0},head:{x:0,y:0}});
 const S={tplId:'kraft',arche:'notes',paper:'#F1ECE0',accent:'#5A4A38',tex:'kraft',texStr:26,footer:'num',
-  titlePos:{x:0,y:0},style:tplStyle(TEMPLATES[0]),_seedKicker:'READING NOTES'};
+  pos:resetPos(),style:tplStyle(TEMPLATES[0]),_seedKicker:'READING NOTES'};
 
 const $=s=>document.querySelector(s);
 const cardsEl=$('#cards'),measurer=$('#measurer');
@@ -377,25 +383,26 @@ function getContent(){
 }
 
 /* ---------- 保存 / 恢复 ---------- */
-let saveTimer;
-function save(now){
-  clearTimeout(saveTimer);
-  const doSave=()=>{
-    try{
-      const data={v:3,S:{tplId:S.tplId,arche:S.arche,paper:S.paper,accent:S.accent,tex:S.tex,texStr:S.texStr,footer:S.footer,titlePos:S.titlePos,style:S.style,_seedKicker:S._seedKicker},content:getContent()};
-      localStorage.setItem(LS_KEY,JSON.stringify(data));
-      const t=new Date();
-      $('#savedTip').textContent='已保存 '+String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0');
-    }catch(e){$('#savedTip').textContent='保存失败';}
-  };
-  if(now)doSave(); else saveTimer=setTimeout(doSave,500);
+let saveTimer,toastTimer;
+function showToast(msg,ok){const t=$('#toast');t.textContent=(ok?'✓ ':'✕ ')+msg;t.className='toast show'+(ok?'':' err');clearTimeout(toastTimer);toastTimer=setTimeout(()=>{t.className='toast'+(ok?'':' err');},1800);}
+function doSave(){
+  try{
+    const data={v:4,S:{tplId:S.tplId,arche:S.arche,paper:S.paper,accent:S.accent,tex:S.tex,texStr:S.texStr,footer:S.footer,pos:S.pos,style:S.style,_seedKicker:S._seedKicker},content:getContent()};
+    localStorage.setItem(LS_KEY,JSON.stringify(data));
+    const t=new Date();
+    $('#savedTip').textContent='已保存 '+String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0');
+    return true;
+  }catch(e){$('#savedTip').textContent='保存失败';return false;}
 }
+function save(now){clearTimeout(saveTimer);if(now)return doSave();saveTimer=setTimeout(doSave,500);return true;}
 function loadState(){
   let raw; try{raw=localStorage.getItem(LS_KEY);}catch(e){return false;}
   if(!raw)return false;
   try{
     const d=JSON.parse(raw); if(!d||!d.S)return false;
     Object.assign(S,d.S);
+    if(!S.pos){S.pos=resetPos(); if(d.S.titlePos)S.pos.title=d.S.titlePos;}
+    S.pos={...resetPos(),...S.pos};
     const c=d.content||{};
     if(c.kicker!=null)$('#cvKicker').value=c.kicker;
     if(c.title!=null)$('#cvTitle').value=c.title;
@@ -455,7 +462,7 @@ function syncControls(){
 function selectTemplate(id){
   const tp=TEMPLATES.find(x=>x.id===id); if(!tp)return;
   S.tplId=id;S.arche=tp.arche;S.paper=tp.paper;S.accent=tp.accent;S.tex=tp.tex;S.texStr=tp.texStr;
-  S.style=tplStyle(tp);S.titlePos={x:0,y:0};
+  S.style=tplStyle(tp);S.pos=resetPos();
   const kc=$('#cvKicker');
   if(kc.value.trim()===S._seedKicker||kc.value.trim()==='')kc.value=tp.kicker;
   S._seedKicker=tp.kicker;
@@ -517,21 +524,21 @@ function splitBlock(html,maxFn){
 const stStyle=k=>`font-family:${FONTS[S.style[k].f].css};font-size:${S.style[k].s}px`;
 const firstChar=t=>{const s=(t||'').replace(/\s/g,'');return s?s[0]:'书';};
 function coverInner(arche,c){
-  const pos=`transform:translate(${S.titlePos.x}px,${S.titlePos.y}px)`;
-  const K=cls=>c.kicker.trim()?`<div class="kicker ${cls||''}" style="${stStyle('kicker')}">${esc(c.kicker)}</div>`:'';
-  const T=`<div class="title" style="${stStyle('title')}">${esc(c.title)}</div>`;
-  const Sub=c.sub.trim()?`<div class="subtitle" style="${stStyle('sub')}">${esc(c.sub)}</div>`:'';
+  const wrapEl=(key,inner)=>`<div class="dragel" data-el="${key}" style="transform:translate(${S.pos[key].x}px,${S.pos[key].y}px)">${inner}</div>`;
+  const K=cls=>c.kicker.trim()?wrapEl('kicker',`<div class="kicker ${cls||''}" style="${stStyle('kicker')}">${esc(c.kicker)}</div>`):'';
+  const T=wrapEl('title',`<div class="title" style="${stStyle('title')}">${esc(c.title)}</div>`);
+  const Sub=c.sub.trim()?wrapEl('sub',`<div class="subtitle" style="${stStyle('sub')}">${esc(c.sub)}</div>`):'';
   switch(arche){
-    case 'band':return `<div class="content cv-band"><div class="bd top" style="${stStyle('kicker')}">${esc(c.kicker)}</div><div class="mid"><div class="dragwrap" style="${pos}">${T}${Sub}</div></div><div class="bd bot"><div class="roundel" style="font-family:${FONTS[S.style.title.f].css}">${esc(firstChar(c.title))}</div></div></div>`;
-    case 'minimal':return `<div class="content cv-min"><div class="dragwrap" style="${pos}">${K('kick-mono')}<div class="short-rule"></div>${T}${Sub}</div></div>`;
-    case 'classic':return `<div class="frame"></div><div class="frame2"></div><div class="content cv-classic"><div class="dragwrap" style="${pos}">${K('kick-mono')}${T}${Sub}<div class="dbl"></div></div></div>`;
-    case 'bunko':return `<div class="content cv-bunko"><div class="lrule"></div><div class="seal" style="font-family:${FONTS[S.style.title.f].css}">${esc(firstChar(c.title))}</div><div class="dragwrap" style="${pos}">${K()}${T}${Sub}</div><div><div class="rule"></div></div></div>`;
-    case 'gallery':return `<div class="content cv-gallery"><div class="top">${K('kick-mono')}</div><div class="btm"><div class="dragwrap" style="${pos}">${Sub}${T}</div></div></div>`;
-    default:return `<div class="content cv-notes"><div class="dragwrap" style="${pos}">${K('kick-mono')}${T}${Sub}</div><div><div class="rule"></div></div></div>`;
+    case 'band':return `<div class="content cv-band"><div class="bd top">${c.kicker.trim()?wrapEl('kicker',`<span style="${stStyle('kicker')}">${esc(c.kicker)}</span>`):''}</div><div class="mid">${T}${Sub}</div><div class="bd bot"><div class="roundel" style="font-family:${FONTS[S.style.title.f].css}">${esc(firstChar(c.title))}</div></div></div>`;
+    case 'minimal':return `<div class="content cv-min">${K('kick-mono')}<div class="short-rule"></div>${T}${Sub}</div>`;
+    case 'classic':return `<div class="frame"></div><div class="frame2"></div><div class="content cv-classic">${K('kick-mono')}${T}${Sub}<div class="dbl"></div></div>`;
+    case 'bunko':return `<div class="content cv-bunko"><div class="lrule"></div><div class="seal" style="font-family:${FONTS[S.style.title.f].css}">${esc(firstChar(c.title))}</div><div>${K()}${T}${Sub}</div><div><div class="rule"></div></div></div>`;
+    case 'gallery':return `<div class="content cv-gallery"><div class="top">${K('kick-mono')}</div><div class="btm">${Sub}${T}</div></div>`;
+    default:return `<div class="content cv-notes"><div>${K('kick-mono')}${T}${Sub}</div><div><div class="rule"></div></div></div>`;
   }
 }
 function bodyInner(pgBlocks,first,c,n,total){
-  const head=first&&c.head.trim()?`<div class="head" style="${stStyle('head')}"><span class="mk"></span><span>${esc(c.head)}</span></div>`:'';
+  const head=first&&c.head.trim()?`<div class="dragel" data-el="head" style="transform:translate(${S.pos.head.x}px,${S.pos.head.y}px)"><div class="head" style="${stStyle('head')}"><span class="mk"></span><span>${esc(c.head)}</span></div></div>`:'';
   const flow=`<div class="flow" style="${stStyle('body')}">${pgBlocks.join('')}</div>`;
   const foot=S.footer==='num'?`<div class="footer"><span>${String(n).padStart(2,'0')}</span><span class="bar"></span><span>${String(total).padStart(2,'0')}</span></div>`:'';
   return `<div class="content body">${head}${flow}</div>${foot}`;
@@ -561,38 +568,39 @@ function build(){
   bindDrag();
 }
 
-/* ---------- 拖拽 + 中线吸附 ---------- */
+/* ---------- 拖拽 + 中线吸附（每元素独立） ---------- */
 function bindDrag(){
-  const card=$('#card-0'); if(!card)return;
-  const el=card.querySelector('.dragwrap'); if(!el)return;
-  el.ondblclick=()=>{S.titlePos={x:0,y:0};build();save();};
-  el.onpointerdown=e=>{
-    e.preventDefault();
-    const gv=document.createElement('div');gv.className='guide v';gv.innerHTML='<span class="lbl">水平居中</span>';
-    const gh=document.createElement('div');gh.className='guide h';gh.innerHTML='<span class="lbl">垂直居中</span>';
-    card.appendChild(gv);card.appendChild(gh);
-    const sx=e.clientX,sy=e.clientY,ox=S.titlePos.x,oy=S.titlePos.y;
-    el.classList.add('grabbing');el.setPointerCapture(e.pointerId);
-    const move=ev=>{
-      let x=ox+(ev.clientX-sx),y=oy+(ev.clientY-sy); // 屏幕位移
-      const cr=card.getBoundingClientRect(),scale=cr.width/1080;
-      x=ox+(ev.clientX-sx)/scale;y=oy+(ev.clientY-sy)/scale; // 转卡片坐标
-      el.style.transform=`translate(${x}px,${y}px)`;
-      const er=el.getBoundingClientRect();
-      const cx=cr.left+cr.width/2,cy=cr.top+cr.height/2;
-      const ex=er.left+er.width/2,ey=er.top+er.height/2;
-      let sX=false,sY=false;
-      if(Math.abs(ex-cx)<8){x-=(ex-cx)/scale;sX=true;}
-      if(Math.abs(ey-cy)<8){y-=(ey-cy)/scale;sY=true;}
-      if(sX||sY)el.style.transform=`translate(${x}px,${y}px)`;
-      gv.style.opacity=sX?1:.4;gh.style.opacity=sY?1:.4;
-      gv.querySelector('.lbl').style.display=sX?'block':'none';
-      gh.querySelector('.lbl').style.display=sY?'block':'none';
-      S.titlePos={x,y};
+  document.querySelectorAll('.card .dragel').forEach(el=>{
+    const card=el.closest('.card'); if(!card)return;
+    const key=el.dataset.el;
+    el.ondblclick=()=>{S.pos[key]={x:0,y:0};build();save();};
+    el.onpointerdown=e=>{
+      e.preventDefault();e.stopPropagation();
+      const gv=document.createElement('div');gv.className='guide v';gv.innerHTML='<span class="lbl">水平居中</span>';
+      const gh=document.createElement('div');gh.className='guide h';gh.innerHTML='<span class="lbl">垂直居中</span>';
+      card.appendChild(gv);card.appendChild(gh);
+      const sx=e.clientX,sy=e.clientY,ox=S.pos[key].x,oy=S.pos[key].y;
+      el.classList.add('grabbing');el.setPointerCapture(e.pointerId);
+      const move=ev=>{
+        const cr=card.getBoundingClientRect(),scale=cr.width/1080;
+        let x=ox+(ev.clientX-sx)/scale,y=oy+(ev.clientY-sy)/scale;
+        el.style.transform=`translate(${x}px,${y}px)`;
+        const er=el.getBoundingClientRect();
+        const cx=cr.left+cr.width/2,cy=cr.top+cr.height/2;
+        const ex=er.left+er.width/2,ey=er.top+er.height/2;
+        let sX=false,sY=false;
+        if(Math.abs(ex-cx)<8){x-=(ex-cx)/scale;sX=true;}
+        if(Math.abs(ey-cy)<8){y-=(ey-cy)/scale;sY=true;}
+        if(sX||sY)el.style.transform=`translate(${x}px,${y}px)`;
+        gv.style.opacity=sX?1:.4;gh.style.opacity=sY?1:.4;
+        gv.querySelector('.lbl').style.display=sX?'block':'none';
+        gh.querySelector('.lbl').style.display=sY?'block':'none';
+        S.pos[key]={x,y};
+      };
+      const up=()=>{el.classList.remove('grabbing');el.removeEventListener('pointermove',move);el.removeEventListener('pointerup',up);gv.remove();gh.remove();save();};
+      el.addEventListener('pointermove',move);el.addEventListener('pointerup',up);
     };
-    const up=()=>{el.classList.remove('grabbing');el.removeEventListener('pointermove',move);el.removeEventListener('pointerup',up);gv.remove();gh.remove();save();};
-    el.addEventListener('pointermove',move);el.addEventListener('pointerup',up);
-  };
+  });
 }
 
 /* ---------- 导出 ---------- */
@@ -619,8 +627,8 @@ $('.rt-tools')?document.querySelector('.rt-tools').addEventListener('mousedown',
 }):0;
 
 cardsEl.addEventListener('click',e=>{const b=e.target.closest('.card-dl');if(b)dlOne(+b.dataset.i);});
-$('#btnBuild').onclick=()=>{build();save(true);};
-$('#btnSave').onclick=()=>save(true);
+$('#btnBuild').onclick=()=>{build();const ok=save(true);showToast(ok?'已重新排版并保存':'保存失败',ok);};
+$('#btnSave').onclick=()=>{const ok=save(true);showToast(ok?'保存成功':'保存失败',ok);};
 $('#btnExport').onclick=dlAll;
 window.addEventListener('beforeunload',()=>save(true));
 document.addEventListener('visibilitychange',()=>{if(document.hidden)save(true);});
