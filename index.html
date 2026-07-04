@@ -475,8 +475,20 @@ function selectTemplate(id){
 }
 
 /* ---------- 富文本正文 → 分页 ---------- */
+// 去掉内联字体样式（font-family/size/weight 等）与 <font> 标签，让字体/字号选择器能统一控制粘贴内容
+function cleanFont(html){
+  const d=document.createElement('div');d.innerHTML=html||'';
+  d.querySelectorAll('font').forEach(f=>{const s=document.createElement('span');s.innerHTML=f.innerHTML;f.replaceWith(s);});
+  d.querySelectorAll('[style]').forEach(el=>{
+    let st=(el.getAttribute('style')||'').replace(/(^|;)\s*(font-family|font-size|font-weight|font|line-height|letter-spacing|font-style)\s*:[^;]*/gi,'');
+    st=st.replace(/;;+/g,';').replace(/^;+|;+$/g,'').trim();
+    if(st)el.setAttribute('style',st);else el.removeAttribute('style');
+  });
+  d.querySelectorAll('[face]').forEach(el=>el.removeAttribute('face'));
+  return d.innerHTML;
+}
 function bodyBlocks(html){
-  const tmp=document.createElement('div');tmp.innerHTML=html||'';
+  const tmp=document.createElement('div');tmp.innerHTML=cleanFont(html);
   const out=[];
   const BLANK='<p class="blank"><br></p>';
   tmp.childNodes.forEach(n=>{
@@ -642,6 +654,14 @@ async function dlAll(){const b=$('#btnExport'),o=b.textContent;b.disabled=true;c
 let bt;const schedule=()=>{clearTimeout(bt);bt=setTimeout(()=>{build();save();},220);};
 ['cvKicker','cvTitle','cvSub','bdHead','wmText'].forEach(id=>$('#'+id).addEventListener('input',schedule));
 $('#bdBody').addEventListener('input',schedule);
+$('#bdBody').addEventListener('paste',e=>{
+  e.preventDefault();
+  const cd=e.clipboardData||window.clipboardData; if(!cd)return;
+  const html=cd.getData('text/html');
+  if(html){document.execCommand('insertHTML',false,cleanFont(html));}
+  else{document.execCommand('insertText',false,cd.getData('text/plain'));}
+  schedule();
+});
 ['wmOn','autoPage'].forEach(id=>$('#'+id).addEventListener('change',()=>{build();save();}));
 $('#texSel').onchange=e=>{S.tex=e.target.value;build();save();};
 $('#texStr').oninput=e=>{S.texStr=+e.target.value;$('#texStrV').textContent=(S.texStr/100).toFixed(2);build();save();};
