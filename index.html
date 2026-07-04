@@ -196,6 +196,7 @@
   .body .head .mk{width:26px;height:26px;background:var(--acc);border-radius:5px;flex:none;}
   .body .flow{line-height:1.9;letter-spacing:.5px;color:var(--ink);}
   .body .flow p,.body .flow div{margin:0 0 .7em;text-align:justify;}
+  .body .flow p.blank{margin:0;height:1em;}
   .body .flow ol{margin:0 0 .7em;padding-left:1.5em;}
   .body .flow li{margin-bottom:.35em;text-align:justify;}
   .body .flow b,.body .flow strong{font-weight:700;}
@@ -206,6 +207,7 @@
 
   #measurer{position:fixed;left:-9999px;top:0;width:840px;visibility:hidden;line-height:1.9;letter-spacing:.5px;}
   #measurer p,#measurer div{margin:0 0 .7em;text-align:justify;}
+  #measurer p.blank{margin:0;height:1em;}
   #measurer ol{margin:0 0 .7em;padding-left:1.5em;}
   #measurer li{margin-bottom:.35em;}
   .empty{color:#a1a1a6;font-size:13px;text-align:center;padding:80px 0;width:100%;}
@@ -473,15 +475,18 @@ function selectTemplate(id){
 function bodyBlocks(html){
   const tmp=document.createElement('div');tmp.innerHTML=html||'';
   const out=[];
+  const BLANK='<p class="blank"><br></p>';
   tmp.childNodes.forEach(n=>{
-    if(n.nodeType===3){const t=n.textContent.trim();if(t)out.push(`<p>${esc(t)}</p>`);}
+    if(n.nodeType===3){const t=n.textContent;if(t.trim())out.push(`<p>${esc(t)}</p>`);else if(t.length)out.push(BLANK);}
     else if(n.nodeType===1){
       const el=n;
-      if(el.tagName==='BR')return;
-      if(!el.textContent.trim() && !/^(OL|UL)$/.test(el.tagName))return; // 丢弃空行块
+      if(el.tagName==='BR'){out.push(BLANK);return;}
+      if(/^(OL|UL)$/.test(el.tagName)){out.push(el.outerHTML);return;}
+      if(!el.textContent.trim()){out.push(BLANK);return;} // 空行 → 保留为空白行
       out.push(el.outerHTML);
     }
   });
+  while(out.length&&out[out.length-1]===BLANK)out.pop(); // 仅去掉尾部多余空行
   return out;
 }
 function measureH(arr){measurer.style.fontFamily=FONTS[S.style.body.f].css;measurer.style.fontSize=S.style.body.s+'px';measurer.innerHTML=arr.join('');return measurer.scrollHeight;}
