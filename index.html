@@ -702,8 +702,8 @@ initControls();
 const restored=loadState();
 if(!restored){$('#bdBody').innerHTML=DEFAULT_BODY;}
 syncControls();
-const boot=()=>{ if(restored){syncControls();build();} else selectTemplate(S.tplId); setTimeout(()=>computeFontCSS(),2500); };
-if(document.fonts&&document.fonts.ready){document.fonts.ready.then(boot);setTimeout(boot,1500);}else boot();
+const boot=()=>{ if(restored){syncControls();build();} else selectTemplate(S.tplId); };
+if(document.fonts&&document.fonts.ready){document.fonts.ready.then(()=>{boot();setTimeout(computeFontCSS,300);});setTimeout(boot,1500);}else{boot();setTimeout(computeFontCSS,300);}
 </script>
 </body>
 </html>
