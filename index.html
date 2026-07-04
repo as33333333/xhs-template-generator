@@ -645,10 +645,24 @@ function bindDrag(){
 }
 
 /* ---------- 导出 ---------- */
-async function exportCard(i){const node=document.getElementById('card-'+i);if(!node)return null;return await htmlToImage.toPng(node,{width:1080,height:1440,pixelRatio:1,cacheBust:true,style:{transform:'none',borderRadius:'0',boxShadow:'none'}});}
+// 字体内嵌 CSS 整个会话只算一次并缓存（否则每导出一张都重抓几 MB 中文字体）
+let FONT_CSS=null,fontCSSPromise=null;
+function computeFontCSS(){
+  if(fontCSSPromise)return fontCSSPromise;
+  const node=document.querySelector('.card');
+  if(!node)return Promise.resolve('');
+  fontCSSPromise=htmlToImage.getFontEmbedCSS(node).then(css=>{FONT_CSS=css;return css;}).catch(()=>{FONT_CSS='';return '';});
+  return fontCSSPromise;
+}
+async function exportCard(i){
+  const node=document.getElementById('card-'+i);if(!node)return null;
+  const opts={width:1080,height:1440,pixelRatio:1,style:{transform:'none',borderRadius:'0',boxShadow:'none'}};
+  const css=await computeFontCSS(); if(css)opts.fontEmbedCSS=css;
+  return await htmlToImage.toPng(node,opts);
+}
 const dl=(u,n)=>{const a=document.createElement('a');a.href=u;a.download=n;a.click();};
 async function dlOne(i){const b=document.querySelector(`.card-dl[data-i="${i}"]`);const o=b?b.textContent:'';if(b){b.textContent='…';b.disabled=true;}try{const u=await exportCard(i);if(u)dl(u,`xhs_${String(i+1).padStart(2,'0')}.png`);}finally{if(b){b.textContent=o;b.disabled=false;}}}
-async function dlAll(){const b=$('#btnExport'),o=b.textContent;b.disabled=true;const nodes=[...document.querySelectorAll('.card')];for(let k=0;k<nodes.length;k++){b.textContent=`${k+1}/${nodes.length}…`;const u=await exportCard(k);if(u)dl(u,`xhs_${String(k+1).padStart(2,'0')}.png`);await new Promise(r=>setTimeout(r,320));}b.textContent=o;b.disabled=false;}
+async function dlAll(){const b=$('#btnExport'),o=b.textContent;b.disabled=true;const nodes=[...document.querySelectorAll('.card')];for(let k=0;k<nodes.length;k++){b.textContent=`${k+1}/${nodes.length}…`;const u=await exportCard(k);if(u)dl(u,`xhs_${String(k+1).padStart(2,'0')}.png`);}b.textContent=o;b.disabled=false;}
 
 /* ---------- 事件 ---------- */
 let bt;const schedule=()=>{clearTimeout(bt);bt=setTimeout(()=>{build();save();},220);};
@@ -688,7 +702,7 @@ initControls();
 const restored=loadState();
 if(!restored){$('#bdBody').innerHTML=DEFAULT_BODY;}
 syncControls();
-const boot=()=>{ if(restored){syncControls();build();} else selectTemplate(S.tplId); };
+const boot=()=>{ if(restored){syncControls();build();} else selectTemplate(S.tplId); setTimeout(()=>computeFontCSS(),2500); };
 if(document.fonts&&document.fonts.ready){document.fonts.ready.then(boot);setTimeout(boot,1500);}else boot();
 </script>
 </body>
