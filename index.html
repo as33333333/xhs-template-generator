@@ -645,7 +645,7 @@ function bindDrag(){
 }
 
 /* ---------- 导出 ---------- */
-async function exportCard(i){const node=document.getElementById('card-'+i);if(!node)return null;return await htmlToImage.toPng(node,{width:1080,height:1440,pixelRatio:1,cacheBust:true,style:{transform:'none'}});}
+async function exportCard(i){const node=document.getElementById('card-'+i);if(!node)return null;return await htmlToImage.toPng(node,{width:1080,height:1440,pixelRatio:1,cacheBust:true,style:{transform:'none',borderRadius:'0',boxShadow:'none'}});}
 const dl=(u,n)=>{const a=document.createElement('a');a.href=u;a.download=n;a.click();};
 async function dlOne(i){const b=document.querySelector(`.card-dl[data-i="${i}"]`);const o=b?b.textContent:'';if(b){b.textContent='…';b.disabled=true;}try{const u=await exportCard(i);if(u)dl(u,`xhs_${String(i+1).padStart(2,'0')}.png`);}finally{if(b){b.textContent=o;b.disabled=false;}}}
 async function dlAll(){const b=$('#btnExport'),o=b.textContent;b.disabled=true;const nodes=[...document.querySelectorAll('.card')];for(let k=0;k<nodes.length;k++){b.textContent=`${k+1}/${nodes.length}…`;const u=await exportCard(k);if(u)dl(u,`xhs_${String(k+1).padStart(2,'0')}.png`);await new Promise(r=>setTimeout(r,320));}b.textContent=o;b.disabled=false;}
