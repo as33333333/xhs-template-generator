@@ -115,7 +115,7 @@
   /* ===== 卡片 1080×1440 ===== */
   .card{width:1080px;height:1440px;position:relative;overflow:hidden;background:var(--p);color:var(--ink);}
   .card .warm{position:absolute;inset:0;pointer-events:none;background:radial-gradient(140% 120% at 30% 12%,var(--p2) 0%,var(--p) 46%,var(--p3) 100%);}
-  .card .grain{position:absolute;inset:0;pointer-events:none;mix-blend-mode:multiply;}
+  .card .grain{position:absolute;inset:0;pointer-events:none;}
   .grain.tex-kraft{background-image:var(--tex-kraft);background-size:260px 260px;}
   .grain.tex-paper{background-image:var(--tex-paper);background-size:300px 300px;}
   .grain.tex-leather{background-image:var(--tex-leather);background-size:200px 200px;}
@@ -337,16 +337,23 @@ function tplStyle(tp){
   return {kicker:{f:kf,s:ks}, title:{f:tp.tf,s:tp.ts}, sub:{f:tp.tf,s:36}, head:{f:tp.tf,s:50}, body:{f:tp.bf,s:tp.bs,lh:1.9}};
 }
 
-/* ---------- 质感纹理 ---------- */
-function grainURI(freq,oct,alpha){
-  const svg=`<svg xmlns='http://www.w3.org/2000/svg' width='300' height='300'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='${freq}' numOctaves='${oct}' stitchTiles='stitch'/><feColorMatrix type='matrix' values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ${alpha} 0'/></filter><rect width='300' height='300' filter='url(#n)'/></svg>`;
-  return `url("data:image/svg+xml;utf8,${encodeURIComponent(svg)}")`;
+/* ---------- 质感纹理（canvas 生成位图噪点，保证预览与导出一致）---------- */
+function makeNoise(px,maxA){
+  const c=document.createElement('canvas');c.width=c.height=px;const x=c.getContext('2d');
+  const img=x.createImageData(px,px),d=img.data;
+  for(let i=0;i<px*px;i++){
+    const g=118+Math.floor(Math.random()*34);          // 中性灰 118–152
+    const a=Math.floor(Math.pow(Math.random(),1.4)*maxA*255); // 偏稀疏的颗粒
+    d[i*4]=g;d[i*4+1]=g;d[i*4+2]=g;d[i*4+3]=a;
+  }
+  x.putImageData(img,0,0);
+  return `url("${c.toDataURL('image/png')}")`;
 }
 const rs=document.documentElement.style;
-rs.setProperty('--tex-kraft',grainURI('0.85',2,0.55));
-rs.setProperty('--tex-paper',grainURI('0.6',2,0.4));
-rs.setProperty('--tex-leather',grainURI('0.5',4,0.6));
-rs.setProperty('--tex-smooth',grainURI('1.2',1,0.3));
+rs.setProperty('--tex-kraft',makeNoise(200,0.55));
+rs.setProperty('--tex-paper',makeNoise(200,0.40));
+rs.setProperty('--tex-leather',makeNoise(120,0.60));
+rs.setProperty('--tex-smooth',makeNoise(200,0.30));
 
 /* ---------- 颜色 ---------- */
 const rgb=h=>{h=h.replace('#','');if(h.length===3)h=h.split('').map(c=>c+c).join('');return[parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)];};
